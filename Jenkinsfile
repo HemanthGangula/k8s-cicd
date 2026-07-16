@@ -45,10 +45,12 @@ pipeline {
     stage('Refresh ECR Pull Secret') {
       steps {
         sh """
+          set +x
+          TOKEN=\$(aws ecr get-login-password --region ${params.AWS_REGION})
           kubectl create secret docker-registry ecr-creds \
             --docker-server=${env.REGISTRY} \
             --docker-username=AWS \
-            --docker-password=\$(aws ecr get-login-password --region ${params.AWS_REGION}) \
+            --docker-password="\$TOKEN" \
             --namespace=${params.NAMESPACE} \
             --dry-run=client -o yaml | kubectl apply -f -
         """
