@@ -1,11 +1,12 @@
 replicaCount: 2
 
 image:
-  repository: hemanthgangula/crud-app
+  repository: 516008588803.dkr.ecr.us-east-1.amazonaws.com/k8s-cicd
   tag: latest
   pullPolicy: IfNotPresent
 
-imagePullSecrets: []
+imagePullSecrets:
+  - name: ecr-creds
 
 service:
   name: crud-app
