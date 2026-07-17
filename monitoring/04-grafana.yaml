@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-provisioning
+  namespace: monitoring
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: default
+        folder: ""
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+  cluster.json: |
+    {
+      "title": "Cluster and Pods",
+      "uid": "cluster-pods",
+      "schemaVersion": 39,
+      "editable": true,
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "CPU cores by pod (cAdvisor)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "targets": [
+            { "expr": "sum(rate(container_cpu_usage_seconds_total{pod!=\"\",container!=\"\"}[5m])) by (pod)", "legendFormat": "{{pod}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Memory working set by pod (cAdvisor)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "targets": [
+            { "expr": "sum(container_memory_working_set_bytes{pod!=\"\",container!=\"\"}) by (pod)", "legendFormat": "{{pod}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Host CPU used % (node-exporter)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "percent", "max": 100 }, "overrides": [] },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "targets": [
+            { "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)", "legendFormat": "cpu used %" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Host memory available (node-exporter)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            { "expr": "node_memory_MemAvailable_bytes", "legendFormat": "available" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Pod container restarts (kube-state-metrics)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "targets": [
+            { "expr": "sum(kube_pod_container_status_restarts_total) by (pod)", "legendFormat": "{{pod}}" }
+          ]
+        }
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:10.1.0
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: "admin"
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - { name: provisioning-datasources, mountPath: /etc/grafana/provisioning/datasources }
+            - { name: provisioning-dashboards,  mountPath: /etc/grafana/provisioning/dashboards }
+            - { name: dashboard-files,          mountPath: /var/lib/grafana/dashboards }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits:   { cpu: 200m, memory: 200Mi }
+      volumes:
+        - name: provisioning-datasources
+          configMap:
+            name: grafana-provisioning
+            items: [{ key: datasource.yaml, path: datasource.yaml }]
+        - name: provisioning-dashboards
+          configMap:
+            name: grafana-provisioning
+            items: [{ key: dashboards.yaml, path: dashboards.yaml }]
+        - name: dashboard-files
+          configMap:
+            name: grafana-provisioning
+            items: [{ key: cluster.json, path: cluster.json }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  selector: { app: grafana }
+  ports:
+    - port: 3000
+      targetPort: 3000
