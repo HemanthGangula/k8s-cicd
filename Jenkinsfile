@@ -27,6 +27,14 @@ pipeline {
       }
     }
 
+    stage('Test') {
+      steps {
+        dir(env.APP_DIR) {
+          sh 'docker run --rm -v "$PWD":/app -w /app node:18-alpine sh -c "npm ci && CI=true npm test"'
+        }
+      }
+    }
+
     stage('Build Image') {
       steps {
         dir(env.APP_DIR) {

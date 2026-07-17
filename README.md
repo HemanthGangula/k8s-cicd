@@ -122,15 +122,17 @@ Every push now runs the pipeline.
 Defined in the `Jenkinsfile`, it runs in order:
 
 1. **Checkout** the pushed commit and read its short hash, used as the image tag.
-2. **Build** the Docker image (compiled in Node, served by nginx).
-3. **Push** the image to ECR using the instance's IAM role.
-4. **Refresh the pull secret** the cluster uses to pull from ECR, since ECR tokens
+2. **Test** the app by running its unit tests in a Node container. If a test fails the
+   build stops here, so a broken commit is never built or deployed.
+3. **Build** the Docker image (compiled in Node, served by nginx).
+4. **Push** the image to ECR using the instance's IAM role.
+5. **Refresh the pull secret** the cluster uses to pull from ECR, since ECR tokens
    expire after twelve hours. This creates or updates the secret and keeps the token out
    of the build log.
-5. **Deploy** with `helm upgrade --install`. Helm sets the new image tag on the
+6. **Deploy** with `helm upgrade --install`. Helm sets the new image tag on the
    Deployment; k3s then starts new pods and pulls that image from ECR. Helm waits for
    the pods to become healthy and rolls back to the previous version if they do not.
-6. **Verify** the rollout finished.
+7. **Verify** the rollout finished.
 
 The build and the deploy use the same commit hash, so the version built is always the
 version deployed.
