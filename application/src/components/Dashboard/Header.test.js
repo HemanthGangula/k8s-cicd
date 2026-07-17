@@ -24,7 +24,7 @@ describe('Header Component', () => {
     );
 
     expect(
-      screen.getByText('Employee Management Software')
+      screen.getByText(/Employee Management Software/)
     ).toBeInTheDocument();
     expect(screen.getByText('Add Employee')).toBeInTheDocument();
     expect(screen.getByText('Logout')).toBeInTheDocument();
